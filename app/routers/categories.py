@@ -26,27 +26,58 @@ def delete_category(category_id: int, db: Session = Depends(get_db)):
     return {"message": "Category deleted"}
 
 
+# @router.get("", response_model=List[CategoryResponse])
+# def get_categories(db: Session = Depends(get_db)):
+#     categories = db.query(Category).all()
+#     result = []
+#     for cat in categories:
+#         lesson_count = (
+#             db.query(func.count(LessonModel.id))
+#             .filter(LessonModel.category_id == cat.id)
+#             .scalar()
+#         )
+#         cat_dict = {
+#             "id": cat.id,
+#             "title": cat.title,
+#             "slug": cat.slug,
+#             "description": cat.description,
+#             "created_at": cat.created_at,
+#             "updated_at": cat.updated_at,
+#             "lesson_count": lesson_count,
+#         }
+#         result.append(CategoryResponse(**cat_dict))
+#     return result
+
+
 @router.get("", response_model=List[CategoryResponse])
 def get_categories(db: Session = Depends(get_db)):
-    categories = db.query(Category).all()
-    result = []
-    for cat in categories:
-        lesson_count = (
-            db.query(func.count(LessonModel.id))
-            .filter(LessonModel.category_id == cat.id)
-            .scalar()
+    categories = (
+        db.query(
+            Category.id,
+            Category.title,
+            Category.slug,
+            Category.description,
+            Category.created_at,
+            Category.updated_at,
+            func.count(LessonModel.id).label("lesson_count"),
         )
-        cat_dict = {
-            "id": cat.id,
-            "title": cat.title,
-            "slug": cat.slug,
-            "description": cat.description,
-            "created_at": cat.created_at,
-            "updated_at": cat.updated_at,
-            "lesson_count": lesson_count,
-        }
-        result.append(CategoryResponse(**cat_dict))
-    return result
+        .outerjoin(LessonModel, LessonModel.category_id == Category.id)
+        .group_by(Category.id)
+        .all()
+    )
+
+    return [
+        CategoryResponse(
+            id=cat.id,
+            title=cat.title,
+            slug=cat.slug,
+            description=cat.description,
+            created_at=cat.created_at,
+            updated_at=cat.updated_at,
+            lesson_count=cat.lesson_count,
+        )
+        for cat in categories
+    ]
 
 
 @router.get("/by-id/{category_id}", response_model=CategoryResponse)
@@ -63,8 +94,13 @@ def get_category(slug: str, db: Session = Depends(get_db)):
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
 
-    courses = db.query(Course).filter(Course.category_id == category.id).order_by(Course.sort_order).all()
-    
+    courses = (
+        db.query(Course)
+        .filter(Course.category_id == category.id)
+        .order_by(Course.sort_order)
+        .all()
+    )
+
     courses_with_lessons = []
     for course in courses:
         lessons = (
@@ -73,10 +109,12 @@ def get_category(slug: str, db: Session = Depends(get_db)):
             .order_by(LessonModel.sort_order)
             .all()
         )
-        courses_with_lessons.append({
-            **course.__dict__,
-            "lessons": lessons,
-        })
+        courses_with_lessons.append(
+            {
+                **course.__dict__,
+                "lessons": lessons,
+            }
+        )
 
     direct_lessons = (
         db.query(LessonModel)
@@ -111,7 +149,9 @@ def create_category(data: CategoryCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{category_id}", response_model=CategoryResponse)
-def update_category(category_id: int, data: CategoryUpdate, db: Session = Depends(get_db)):
+def update_category(
+    category_id: int, data: CategoryUpdate, db: Session = Depends(get_db)
+):
     category = db.query(Category).filter(Category.id == category_id).first()
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
