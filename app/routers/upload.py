@@ -8,13 +8,10 @@ router = APIRouter(prefix="/api/upload", tags=["upload"])
 
 @router.post("", response_model=UploadResponse)
 async def upload_file(file: UploadFile = File(...)):
-    if not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Only images are allowed")
-
-    upload_dir = os.getenv("UPLOAD_DIR", "./uploads")
+    upload_dir = os.getenv("UPLOAD_DIR", "./uploads/topics")
     os.makedirs(upload_dir, exist_ok=True)
 
-    ext = os.path.splitext(file.filename)[1] or ".png"
+    ext = os.path.splitext(file.filename)[1] or ".bin"
     filename = f"{uuid.uuid4()}{ext}"
     filepath = os.path.join(upload_dir, filename)
 
@@ -22,4 +19,4 @@ async def upload_file(file: UploadFile = File(...)):
         content = await file.read()
         f.write(content)
 
-    return UploadResponse(url=f"/uploads/{filename}")
+    return UploadResponse(url=f"/uploads/topics/{filename}")

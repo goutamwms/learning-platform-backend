@@ -1,23 +1,13 @@
-import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-from pydantic_settings import BaseSettings
+import os
 
-
-class Settings(BaseSettings):
-    database_url: str = "sqlite:///./learning_platform.db"
-    upload_dir: str = "./uploads"
-    secret_key: str = "your-secret-key-here"
-
-    class Config:
-        env_file = ".env"
-
-
-settings = Settings()
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./learning_platform.db")
+UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")
 
 engine = create_engine(
-    settings.database_url,
-    connect_args={"check_same_thread": False} if "sqlite" in settings.database_url else {},
+    DATABASE_URL,
+    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {},
     pool_pre_ping=True,
     pool_recycle=3600,
 )
