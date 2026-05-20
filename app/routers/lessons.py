@@ -142,7 +142,7 @@ def update_lesson(lesson_id: int = Path(..., ge=1), data: dict = None, db: Sessi
         raise HTTPException(status_code=404, detail="Lesson not found")
 
     for key, value in data.items():
-        if value is not None and key in ["title", "slug", "content", "category_id", "course_id"]:
+        if value is not None and key in ["title", "slug", "content", "example_content", "category_id", "course_id"]:
             setattr(lesson, key, value)
 
     db.commit()

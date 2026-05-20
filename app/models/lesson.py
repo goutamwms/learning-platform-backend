@@ -13,6 +13,7 @@ class Lesson(Base):
     title = Column(String(255), nullable=False)
     slug = Column(String(255), nullable=False)
     content = Column(Text, nullable=True)
+    example_content = Column(Text, nullable=True)
     sort_order = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

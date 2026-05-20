@@ -32,6 +32,7 @@ class LessonBase(BaseModel):
     title: str
     slug: str
     content: Optional[str] = None
+    example_content: Optional[str] = None
 
 
 class LessonResponse(LessonBase):
