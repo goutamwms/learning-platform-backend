@@ -1,12 +1,130 @@
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Path
+import os
+import uuid
+from datetime import datetime
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Path, UploadFile, File as FastAPIFile
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 from app.database import get_db
 from app.models.category import Category, Course
 from app.models.lesson import Lesson
+from app.models.lesson_file import LessonFile
 from app.schemas.schemas import LessonResponse
 
 router = APIRouter(prefix="/api/lessons", tags=["lessons"])
+
+UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")
+LESSON_FILES_DIR = os.path.join(UPLOAD_DIR, "lessons")
+
+
+class LessonFileResponse(BaseModel):
+    id: int
+    lesson_id: int
+    original_name: str
+    file_size: int
+    mime_type: str
+    file_url: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+def ensure_lesson_upload_dir():
+    os.makedirs(LESSON_FILES_DIR, exist_ok=True)
+
+
+@router.get("/{lesson_id}/files", response_model=List[LessonFileResponse])
+def list_lesson_files(
+    lesson_id: int = Path(..., ge=1),
+    db: Session = Depends(get_db),
+):
+    lesson = db.query(Lesson).filter(Lesson.id == lesson_id).first()
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+
+    records = (
+        db.query(LessonFile)
+        .filter(LessonFile.lesson_id == lesson_id)
+        .order_by(LessonFile.created_at.desc())
+        .all()
+    )
+    return [
+        LessonFileResponse(
+            id=f.id,
+            lesson_id=f.lesson_id,
+            original_name=f.original_name,
+            file_size=f.file_size,
+            mime_type=f.mime_type,
+            file_url=f"/uploads/lessons/{f.stored_name}",
+            created_at=f.created_at,
+        )
+        for f in records
+    ]
+
+
+@router.post("/{lesson_id}/files", response_model=LessonFileResponse)
+async def upload_lesson_file(
+    lesson_id: int = Path(..., ge=1),
+    file: UploadFile = FastAPIFile(...),
+    db: Session = Depends(get_db),
+):
+    lesson = db.query(Lesson).filter(Lesson.id == lesson_id).first()
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+
+    ensure_lesson_upload_dir()
+
+    ext = os.path.splitext(file.filename or "file")[1] or ""
+    stored_name = f"{uuid.uuid4()}{ext}"
+    file_path = os.path.join(LESSON_FILES_DIR, stored_name)
+
+    content = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    record = LessonFile(
+        lesson_id=lesson_id,
+        original_name=file.filename or "untitled",
+        stored_name=stored_name,
+        file_size=len(content),
+        mime_type=file.content_type or "application/octet-stream",
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+
+    return LessonFileResponse(
+        id=record.id,
+        lesson_id=record.lesson_id,
+        original_name=record.original_name,
+        file_size=record.file_size,
+        mime_type=record.mime_type,
+        file_url=f"/uploads/lessons/{record.stored_name}",
+        created_at=record.created_at,
+    )
+
+
+@router.delete("/{lesson_id}/files/{file_id}")
+def delete_lesson_file(
+    lesson_id: int = Path(..., ge=1),
+    file_id: int = Path(..., ge=1),
+    db: Session = Depends(get_db),
+):
+    record = (
+        db.query(LessonFile)
+        .filter(LessonFile.id == file_id, LessonFile.lesson_id == lesson_id)
+        .first()
+    )
+    if not record:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    file_path = os.path.join(LESSON_FILES_DIR, record.stored_name)
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
+    db.delete(record)
+    db.commit()
+    return {"message": "File deleted"}
 
 
 @router.delete("/{lesson_id}")

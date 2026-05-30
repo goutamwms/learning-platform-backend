@@ -20,3 +20,4 @@ class Lesson(Base):
 
     category = relationship("Category", back_populates="lessons")
     course = relationship("Course", back_populates="lessons")
+    files = relationship("LessonFile", back_populates="lesson", cascade="all, delete-orphan")

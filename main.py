@@ -13,6 +13,7 @@ from app.routers import auth, topics, admin
 
 from app.models.category import Category, Course
 from app.models.lesson import Lesson
+from app.models.lesson_file import LessonFile
 from app.routers import categories, courses, lessons, upload
 
 
